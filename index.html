@@ -1307,36 +1307,50 @@ window.shareReport=async()=>{
   // document.title / metadata judul PDF, bukan hanya File.name — samakan semuanya.
   const prevTitle=document.title;
   document.title=judul;
+
+  // PENYEBAB HASIL PDF TERPOTONG: #doc-preview di layar berada di dalam beberapa
+  // container ber-"overflow:auto/hidden" yang lebih SEMPIT dari lebar dokumen A4
+  // (mis. sidebar di sebelahnya, atau wrapper scroll horizontal di HP). Jika
+  // di-capture langsung di posisi aslinya, html2canvas ikut membatasi hasil
+  // sesuai lebar container tsb (persis area yang kelihatan di layar tanpa
+  // discroll), bukan lebar A4 penuh — sisi kanan/bawah dokumen jadi hilang.
+  // Solusi: clone dokumen ke wrapper baru yang ditempel LANGSUNG ke <body>
+  // (di luar semua sidebar/scroll container), lebar dikunci 210mm, baru
+  // clone itu yang di-capture — bukan elemen aslinya.
+  const clone=document.createElement("div");
+  clone.id="share-capture-wrap";
+  clone.style.cssText="position:fixed;top:0;left:-99999px;width:210mm;background:#fff;pointer-events:none";
+  clone.innerHTML=inner.outerHTML;
+  const cloneInner=clone.firstElementChild;
   // export-mode: hilangkan shadow/radius, dan hilangkan padding atas-bawah div saat capture —
   // margin atas-bawah sekarang jadi tanggung jawab opsi margin html2pdf (diulang tiap halaman),
   // bukan dibakar jadi padding di satu gambar panjang (itu penyebab margin hilang di halaman tengah dokumen).
-  inner.classList.add("export-mode");
+  cloneInner.classList.add("export-mode");
+  cloneInner.style.width="210mm"; // pastikan tidak ikut lebar 100% dari wrapper manapun
+  document.body.appendChild(clone);
 
   try{
     if(typeof html2pdf==="undefined") throw new Error("html2pdf tidak tersedia");
 
-    // Pastikan halaman preview sudah discroll ke atas & semua foto selesai dimuat —
-    // dua penyebab utama foto hilang / margin bergeser saat di-capture html2canvas.
-    window.scrollTo(0,0);
-    const mainEl=inner.closest("main"); if(mainEl) mainEl.scrollTop=0;
-    await waitImagesLoaded(inner);
+    // Tunggu semua foto (kop, ttd, lampiran) selesai dimuat di DALAM clone —
+    // gambar di elemen asli sudah termuat, tapi <img> hasil clone tetap perlu
+    // menunggu proses load/decode-nya sendiri sebelum di-capture.
+    await waitImagesLoaded(cloneInner);
 
-    // windowWidth & windowHeight dipaksa = ukuran asli #doc-preview (bukan ukuran jendela browser/HP saat ini).
-    // Sebelumnya cuma windowWidth+width yang diisi -> windowHeight ikut default ke tinggi jendela (window.innerHeight)
-    // yang jauh lebih pendek dari #doc-preview yang panjang (banyak halaman), sehingga capture-nya gagal/rusak
-    // dan proses Bagikan error. Skrng windowWidth+windowHeight dipasangkan agar capture selalu utuh & konsisten.
-    // scrollX/scrollY:0 mencegah html2canvas ikut menggeser hasil capture sesuai posisi scroll halaman saat ini
-    // (penyebab umum margin PDF jadi berantakan/foto terpotong).
+    // windowWidth & windowHeight dipaksa = ukuran asli clone (bukan ukuran jendela
+    // browser/HP saat ini), agar layout selalu dihitung pada lebar A4 penuh &
+    // capture selalu utuh — tidak lagi terpengaruh sidebar/scroll container manapun
+    // karena clone sudah berdiri sendiri langsung di bawah <body>.
     const worker=html2pdf()
       .set({
         margin:[20,0],
         filename:fileName,
         image:{type:"jpeg",quality:0.95},
-        html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:"#ffffff",scrollX:0,scrollY:0,windowWidth:inner.scrollWidth,windowHeight:inner.scrollHeight},
+        html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:"#ffffff",scrollX:0,scrollY:0,windowWidth:cloneInner.scrollWidth,windowHeight:cloneInner.scrollHeight},
         jsPDF:{unit:"mm",format:"a4",orientation:"portrait"},
         pagebreak:{mode:["css","legacy"]}
       })
-      .from(inner);
+      .from(cloneInner);
 
     const pdfBlob=await worker.outputPdf("blob");
     const file=new File([pdfBlob],fileName,{type:"application/pdf"});
@@ -1365,7 +1379,7 @@ window.shareReport=async()=>{
     else{ console.error(err); showToast("Gagal membagikan laporan, coba lagi",true); }
   }
   document.title=prevTitle;
-  inner.classList.remove("export-mode");
+  clone.remove();
   finish();
 };
 
