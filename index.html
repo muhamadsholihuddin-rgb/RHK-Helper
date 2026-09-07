@@ -19,21 +19,34 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  /* Palet "soft & profesional": krem-biru pucat sebagai kanvas, aksen teal-mint yang lembut
-     menggantikan cyan tajam sebelumnya, teks navy-slate yang tidak terlalu gelap/kontras keras. */
+  /* Palet "soft & profesional": krem-biru pucat sebagai kanvas, aksen teal-mint.
+     Teks dibuat lebih gelap/kontras dibanding versi sebelumnya agar tetap nyaman
+     dibaca (terutama --txs/--txm yang dipakai untuk label & teks sekunder). */
   --bg:#F6F8FB;--surf:#ffffff;--surfhi:#F0F5FB;
   --bd:#E7EDF6;--bd2:#D6E1EF;
-  --tx:#2B3648;--txs:#5B6B84;--txm:#93A1B7;
-  --gold:#3FBFA6;--goldDim:rgba(63,191,166,0.12);--goldBd:rgba(63,191,166,0.32);
-  --navy:#33507A;--navyhi:#3D5D8A;
+  --tx:#1C2534;--txs:#42506A;--txm:#67768F;
+  --gold:#2FA890;--goldDim:rgba(47,168,144,0.14);--goldBd:rgba(47,168,144,0.36);
+  --navy:#2C4468;--navyhi:#33507A;
 }
+/* ── TEMA GELAP ── diaktifkan lewat atribut data-theme="dark" di <html> (lihat setTheme()) */
+[data-theme="dark"]{
+  --bg:#10161F;--surf:#1A2230;--surfhi:#222C3D;
+  --bd:#2C3849;--bd2:#3A4A5F;
+  --tx:#EEF3FA;--txs:#C2CEE0;--txm:#8FA0B8;
+  --gold:#45D6BA;--goldDim:rgba(69,214,186,0.16);--goldBd:rgba(69,214,186,0.4);
+  --navy:#5C7FB0;--navyhi:#6C8FC0;
+}
+[data-theme="dark"] body{background:var(--bg)}
+[data-theme="dark"] .card,[data-theme="dark"] .rhk-card{box-shadow:0 1px 3px rgba(0,0,0,.35)}
+[data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{color-scheme:dark}
+[data-theme="dark"] #doc-preview{background:#ffffff;color:#1C2534} /* dokumen laporan tetap kertas putih walau tema gelap aktif */
 body{background:var(--bg);color:var(--tx);font-family:'DM Sans',system-ui,sans-serif;min-height:100vh;font-size:13px}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-thumb{background:#C3D9EE;border-radius:99px}
-input,select,textarea{font-family:inherit;background:#ffffff;border:1px solid var(--bd2);color:var(--tx);border-radius:8px;padding:9px 12px;font-size:12px;outline:none;width:100%;transition:border-color .15s}
+input,select,textarea{font-family:inherit;background:var(--surf);border:1px solid var(--bd2);color:var(--tx);border-radius:8px;padding:9px 12px;font-size:12px;outline:none;width:100%;transition:border-color .15s}
 input:focus,select:focus,textarea:focus{border-color:var(--gold)}
 select{appearance:none;padding-right:32px;cursor:pointer}
-select option{background:#ffffff}
+select option{background:var(--surf);color:var(--tx)}
 textarea{resize:vertical;line-height:1.7}
 input[type=date]::-webkit-calendar-picker-indicator{filter:none;cursor:pointer;opacity:.6}
 input[type=range]{accent-color:var(--gold);cursor:pointer}
@@ -217,9 +230,18 @@ function getDasar(rhk, f, modul, sesi) {
   return [...base, sp[rhk.no]||sp[9]];
 }
 
+// ── LOKASI (Desa) UTK NARASI/CAPTION ─────────
+// RHK 2 (P2K2) memakai Desa Dampingan yang dipilih dari dropdown (lokasi kelompok
+// pasti & tetap). RHK lain tidak wajib berlokasi di satu desa dampingan tertentu,
+// jadi default-nya generik "dampingan" (=> "Desa dampingan"), kecuali diisi manual.
+function getLokasiDesa(f, rhk){
+  if(rhk.no===2) return f.desa || "...";
+  return (f.desaManual && f.desaManual.trim()) ? f.desaManual.trim() : "dampingan";
+}
+
 // ── CAPTION FOTO OTOMATIS (menyesuaikan RHK / sub kegiatan) ─
 function photoCaption(rhk, f, modul, sesi){
-  const desa=f.desa||"...", grp=f.kelompok||"...";
+  const desa=getLokasiDesa(f, rhk), grp=f.kelompok||"...";
   switch(rhk.no){
     case 1: return `Pendampingan penyaluran bantuan sosial PKH di wilayah ${f.wilayah||"dampingan"}`;
     case 2: return `Pelaksanaan P2K2 — ${sesi} bersama Kelompok ${grp}, Desa ${desa}`;
@@ -626,7 +648,7 @@ function findXlsxNarasi(rhk, f){
 }
 
 function buildNarrative(rhk, f, modul, sesi, forceRandom) {
-  const desa=f.desa||"...", grp=f.kelompok||"...", sasaran=f.sasaran||"...", act=f.kegiatan||"";
+  const desa=getLokasiDesa(f, rhk), grp=f.kelompok||"...", sasaran=f.sasaran||"...", act=f.kegiatan||"";
   const isPPSE = act.toLowerCase().includes("ppse");
   const ctx = {f, desa, grp, sasaran, act, modul, sesi, isPPSE};
   let bank;
@@ -659,6 +681,7 @@ let S = {
   modul: Object.keys(P2K2)[0],
   sesi: Object.values(P2K2)[0][0],
   fontSize: 11.5,
+  theme: "light",
   pdfLoading: false,
   shareLoading: false,
   geminiKey: "",
@@ -673,12 +696,16 @@ let S = {
   eviden: { link:"", loading:false, error:"", data:null, bulan:new Date().getMonth()+1 },
   villages: [], // [{nama:"Desa A", kelompok:["Kelompok 1", ...]}]
   expandedVillage: null, // index desa yang sedang di-expand, null jika tidak ada
-  kop:null, ttd:null, f1:null, f2:null, f3:null,
+  lokasiExpanded: false, // form Desa Dampingan manual (utk RHK selain RHK 2) sedang dibuka/tidak
+  geotagOpen: false, // panel isian geotag Foto Utama sedang dibuka/tidak
+  geotagBusy: false, // sedang memproses (menerapkan) cap geotag ke foto
+  geotagData: { tanggal: today(), koordinat:"", desa:"", kecamatan:"", kabupaten:"", provinsi:"" },
+  kop:null, ttd:null, f1:null, f2:null, f3:null, f1_original:null,
   form:{
     nama:"", nip:"",
     jabatan:"Pengelola Layanan Operasional", kota:"Kediri",
     tgl_laporan:lastWorkday(), wilayah:"Kecamatan Gurah Kabupaten Kediri",
-    kegiatan:RHK[0].options[0], kelompok:"", desa:"", sasaran:"", tempat:"Rumah KPM",
+    kegiatan:RHK[0].options[0], kelompok:"", desa:"", desaManual:"", sasaran:"", tempat:"Rumah KPM",
     tgl_kegiatan:today(),
     umum:"",tujuan:"",narasi:"",hasil:"",
     ppse_nik:"3506187009840002",ppse_nama:"KASEMAN",ppse_usia:"41",
@@ -812,7 +839,7 @@ const photoSlot = (id,label,aspect="16/9")=>{
   </div>`;
 };
 // ── LOCAL STORAGE UNTUK FOTO PERMANEN ────────
-const PHOTO_KEYS = ["kop","ttd","f1","f2","f3"];
+const PHOTO_KEYS = ["kop","ttd","f1","f2","f3","f1_original"];
 function savePhotos(){
   PHOTO_KEYS.forEach(k=>{
     try{
@@ -831,6 +858,18 @@ function loadPhotos(){
 }
 loadPhotos(); // muat saat halaman dibuka
 
+// ── LOCAL STORAGE UNTUK ISIAN GEOTAG (supaya tak perlu ketik ulang tiap laporan) ──
+function saveGeotagData(){
+  try{ localStorage.setItem("autoreport_geotag", JSON.stringify(S.geotagData)); }catch(e){}
+}
+function loadGeotagData(){
+  try{
+    const raw=localStorage.getItem("autoreport_geotag");
+    if(raw) Object.assign(S.geotagData, JSON.parse(raw));
+  }catch(e){}
+}
+loadGeotagData();
+
 // ── PROFIL PENGGUNA PERMANEN (localStorage) ──
 const PROFILE_KEYS = ["nama","nip","jabatan","kota","wilayah","desa","kelompok"];
 function saveProfile(){
@@ -848,6 +887,12 @@ function loadProfile(){
   }catch(e){ return false; }
 }
 S.profileGate = !loadProfile(); // tampilkan gate hanya jika profil belum pernah disimpan
+
+// ── Muat tema (terang/gelap) tersimpan sebelum render pertama, agar tidak "flash" ──
+try{
+  const savedTheme = localStorage.getItem("autoreport_theme");
+  if(savedTheme==="dark"){ S.theme="dark"; document.documentElement.setAttribute("data-theme","dark"); }
+}catch(e){}
 
 // ── Arahkan aplikasi ke halaman /jurnal saat pertama dibuka ──
 // Jika URL yang diakses adalah salah satu rute dikenal (mis. dibuka lewat
@@ -961,6 +1006,15 @@ window.homeGoToForm=(id)=>{ pickRHK(id); };
 const EVIDEN_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwD1JwT8f5xTUbI6J4th-cmWeLVkh7qMxthMVG2pJdRiHRafxoZWPmdDX8vMpnBumsV/exec";
 const EVIDEN_LINK_KEY = "autoreport_eviden_link";
 function evNomorRhk(nama){ const m=String(nama).match(/\d+/); return m?parseInt(m[0],10):0; }
+// Target jumlah eviden per RHK per bulan (acuan capaian di Monitor Eviden).
+// RHK 6 & 9 bersifat kondisional/rutin — 1 laporan yg terupload dianggap sudah 100%.
+const TARGET_EVIDEN={1:1,2:15,3:2,4:2,5:3,6:"100%",7:1,8:2,9:"100%"};
+function evPersenTarget(no, jumlah){
+  const t=TARGET_EVIDEN[no];
+  if(t==="100%") return jumlah>=1?100:0;
+  if(!t) return null;
+  return Math.min(100, Math.round((jumlah/t)*100));
+}
 function evNomorBulan(key){ const m=String(key).match(/^(\d+)/); return m?parseInt(m[1],10):0; }
 const EVIDEN_BULAN=["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 function evNamaBulan(n){ return (n>=1&&n<=12)?EVIDEN_BULAN[n-1]:"-"; }
@@ -1022,6 +1076,15 @@ window.toggleVillageExpand=(idx)=>{
   }
   render();
 };
+window.toggleLokasiExpand=()=>{ S.lokasiExpanded=!S.lokasiExpanded; render(); };
+
+// ── TEMA TERANG / GELAP ──────────────────────
+window.setTheme=(mode)=>{
+  S.theme = mode==="dark" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", S.theme);
+  try{ localStorage.setItem("autoreport_theme", S.theme); }catch(e){}
+  render();
+};
 window.removeVillage=(idx)=>{
   S.villages.splice(idx,1);
   saveVillages(); ensureCurrentDesaKelompok(); render();
@@ -1061,9 +1124,146 @@ window.openProfileGate=()=>{ S.profileGate=true; render(); };
 
 window.loadPhoto=(id,inp)=>{
   const f=inp.files[0]; if(!f) return;
-  const r=new FileReader(); r.onloadend=()=>{ S[id]=r.result; savePhotos(); render(); }; r.readAsDataURL(f);
+  const r=new FileReader(); r.onloadend=()=>{
+    S[id]=r.result;
+    // Foto Utama: simpan juga salinan asli (bersih, tanpa cap) sbg sumber setiap kali geotag diterapkan/diedit ulang —
+    // supaya cap tidak menumpuk berlapis-lapis tiap kali field geotag diubah.
+    if(id==="f1"){ S.f1_original=r.result; }
+    savePhotos(); render();
+  }; r.readAsDataURL(f);
 };
-window.delPhoto=(id)=>{ S[id]=null; savePhotos(); render(); };
+window.delPhoto=(id)=>{
+  S[id]=null;
+  if(id==="f1") S.f1_original=null;
+  savePhotos(); render();
+};
+
+// ── GEOTAG FOTO UTAMA — cap tanggal, koordinat & alamat + watermark peta kecil ──
+// Semua isian diketik MANUAL oleh pendamping (bukan otomatis dari GPS perangkat),
+// lalu "dicap" langsung ke piksel foto lewat <canvas> supaya hasilnya tetap melekat
+// di file gambar apa pun (Word/PDF/cetak), tidak bergantung metadata EXIF yang
+// gampang hilang saat foto dikompres ulang oleh WhatsApp/aplikasi lain.
+function renderGeotagPanel(){
+  if(!S.f1) return ""; // hanya relevan kalau Foto Utama sudah diisi
+  const g=S.geotagData;
+  return `
+  <div style="background:var(--surfhi);border:1px solid var(--bd);border-radius:10px;padding:12px;margin-top:-6px">
+    <button type="button" class="btn-ghost" style="margin-bottom:${S.geotagOpen?"10px":"0"}" onclick="toggleGeotagPanel()">
+      ${S.geotagOpen?"▼":"▶"} 📍 Tambahkan Geotag ke Foto Utama
+    </button>
+    ${S.geotagOpen?`
+    <div class="row2" style="margin-bottom:10px">
+      <div><label class="lbl">Tanggal</label><input type="date" class="geotag-inp" data-gkey="tanggal" value="${escAttr(g.tanggal)}"/></div>
+      <div><label class="lbl">Koordinat (lat, long)</label><input type="text" class="geotag-inp" data-gkey="koordinat" value="${escAttr(g.koordinat)}" placeholder="-7.799545, 112.009371"/></div>
+    </div>
+    <div class="row2" style="margin-bottom:10px">
+      <div><label class="lbl">Desa/Kelurahan &amp; Alamat</label><input type="text" class="geotag-inp" data-gkey="desa" value="${escAttr(g.desa)}" placeholder="Jl. Mayor Bismo / Desa ..."/></div>
+      <div><label class="lbl">Kecamatan</label><input type="text" class="geotag-inp" data-gkey="kecamatan" value="${escAttr(g.kecamatan)}" placeholder="Kecamatan Mojoroto"/></div>
+    </div>
+    <div class="row2" style="margin-bottom:10px">
+      <div><label class="lbl">Kabupaten/Kota</label><input type="text" class="geotag-inp" data-gkey="kabupaten" value="${escAttr(g.kabupaten)}" placeholder="Kabupaten Kediri"/></div>
+      <div><label class="lbl">Provinsi</label><input type="text" class="geotag-inp" data-gkey="provinsi" value="${escAttr(g.provinsi)}" placeholder="Jawa Timur"/></div>
+    </div>
+    <button class="btn-gold" style="width:100%;justify-content:center;padding:10px" onclick="applyGeotag()" ${S.geotagBusy?"disabled":""}>
+      ${S.geotagBusy?`<span class="spin-ico">${IC.spin}</span> Menerapkan…`:"📍 Terapkan Geotag ke Foto"}
+    </button>
+    <p style="font-size:10px;color:var(--txm);margin-top:8px;line-height:1.5">Cap ini ditempel langsung ke gambar. Ubah isian lalu klik "Terapkan" lagi kapan saja — cap sebelumnya otomatis diganti (bukan menumpuk), karena selalu dihitung ulang dari foto asli.</p>
+    `:""}
+  </div>`;
+}
+window.toggleGeotagPanel=()=>{ S.geotagOpen=!S.geotagOpen; render(); };
+
+function formatKoordinatGeotag(raw){
+  if(!raw || !raw.trim()) return "";
+  const nums=raw.trim().split(/[,\s]+/).map(Number).filter(n=>!isNaN(n));
+  if(nums.length<2) return raw.trim();
+  const [lat,lon]=nums;
+  const ns=lat<0?"S":"N", ew=lon<0?"W":"E";
+  return `${Math.abs(lat)}${ns} ${Math.abs(lon)}${ew}`;
+}
+
+// Peta kecil dekoratif (bukan data peta asli/live) — cukup sbg penanda visual
+// "ada info lokasi", digambar langsung di canvas supaya tidak perlu koneksi internet.
+function drawMiniMapGeotag(ctx,x,y,w,h){
+  ctx.save();
+  ctx.beginPath();
+  const r=Math.min(10,w*0.05,h*0.05);
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  ctx.clip();
+  ctx.fillStyle="#EFEFE7"; ctx.fillRect(x,y,w,h);
+  // sungai/area biru muda di kiri
+  ctx.fillStyle="#CFE3EF";
+  ctx.beginPath(); ctx.moveTo(x,y+h*0.35); ctx.quadraticCurveTo(x+w*0.18,y+h*0.15,x+w*0.12,y-2);
+  ctx.lineTo(x-2,y-2); ctx.lineTo(x-2,y+h*0.7); ctx.quadraticCurveTo(x+w*0.05,y+h*0.55,x,y+h*0.35); ctx.closePath(); ctx.fill();
+  // jalan-jalan (garis putih dgn tepi abu tipis)
+  ctx.strokeStyle="#ffffff"; ctx.lineCap="round";
+  const roads=[[0.55,0,0.42,1],[0,0.62,1,0.58],[0.2,1,0.35,0.3]];
+  roads.forEach(([x1,y1,x2,y2])=>{
+    ctx.lineWidth=Math.max(2,w*0.045);
+    ctx.strokeStyle="#D8D8CC";
+    ctx.beginPath(); ctx.moveTo(x+w*x1,y+h*y1); ctx.lineTo(x+w*x2,y+h*y2); ctx.stroke();
+    ctx.lineWidth=Math.max(1,w*0.028);
+    ctx.strokeStyle="#ffffff";
+    ctx.beginPath(); ctx.moveTo(x+w*x1,y+h*y1); ctx.lineTo(x+w*x2,y+h*y2); ctx.stroke();
+  });
+  // pin merah di tengah
+  const cx=x+w*0.5, cy=y+h*0.46, pr=Math.max(6,w*0.075);
+  ctx.fillStyle="#E23B3B";
+  ctx.beginPath();
+  ctx.arc(cx,cy-pr*0.3,pr,0,Math.PI*2); ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(cx-pr*0.85,cy-pr*0.05); ctx.lineTo(cx+pr*0.85,cy-pr*0.05); ctx.lineTo(cx,cy+pr*1.5); ctx.closePath(); ctx.fill();
+  ctx.fillStyle="#ffffff"; ctx.beginPath(); ctx.arc(cx,cy-pr*0.3,pr*0.4,0,Math.PI*2); ctx.fill();
+  // border tipis
+  ctx.restore();
+  ctx.strokeStyle="rgba(0,0,0,.15)"; ctx.lineWidth=1;
+  ctx.beginPath();
+  ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  ctx.stroke();
+}
+
+window.applyGeotag=async()=>{
+  if(!S.f1_original){ showToast("Unggah Foto Utama terlebih dahulu",true); return; }
+  S.geotagBusy=true; render();
+  try{
+    const img=await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=rej; im.src=S.f1_original; });
+    const canvas=document.createElement("canvas");
+    canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
+    const ctx=canvas.getContext("2d");
+    ctx.drawImage(img,0,0);
+
+    const W=canvas.width, H=canvas.height;
+    const g=S.geotagData;
+    const dLabel = g.tanggal ? new Intl.DateTimeFormat("id-ID",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}).format(new Date(g.tanggal+"T00:00:00")) : "";
+    const koordLabel = formatKoordinatGeotag(g.koordinat);
+    const lines=[dLabel, koordLabel, g.desa, g.kecamatan, g.kabupaten, g.provinsi].filter(Boolean);
+    if(lines.length===0){ showToast("Isi minimal salah satu kolom geotag dulu",true); S.geotagBusy=false; render(); return; }
+
+    // Peta kecil di kiri bawah
+    const mapW=W*0.30, mapH=mapW*0.68, mapX=W*0.02, mapY=H-mapH-W*0.02;
+    drawMiniMapGeotag(ctx,mapX,mapY,mapW,mapH);
+
+    // Teks rata kanan di kanan bawah, dgn shadow gelap spy terbaca di background apa pun
+    const baseFont=Math.round(W*0.028);
+    ctx.textAlign="right"; ctx.textBaseline="alphabetic";
+    ctx.shadowColor="rgba(0,0,0,.85)"; ctx.shadowBlur=W*0.006; ctx.shadowOffsetX=1; ctx.shadowOffsetY=1;
+    ctx.fillStyle="#ffffff";
+    const lineGap=baseFont*1.35;
+    let ty=H - W*0.025 - (lines.length-1)*lineGap;
+    lines.forEach((line,i)=>{
+      ctx.font = i<2 ? `700 ${baseFont}px 'DM Sans',sans-serif` : `600 ${Math.round(baseFont*0.86)}px 'DM Sans',sans-serif`;
+      ctx.fillText(line, W - W*0.025, ty + i*lineGap);
+    });
+    ctx.shadowColor="transparent";
+
+    S.f1 = canvas.toDataURL("image/jpeg",0.9);
+    savePhotos(); saveGeotagData();
+    showToast("Geotag berhasil diterapkan ke Foto Utama ✓");
+  }catch(err){
+    console.error(err); showToast("Gagal menerapkan geotag, coba lagi",true);
+  }
+  S.geotagBusy=false; render();
+};
 
 const sideTab=(id,lbl,ic)=>`<button class="side-tab ${S.section===id&&S.page==="edit"?"active":""}" onclick="navSection('${id}')">${ico(ic)} ${lbl}</button>`;
 const pageTab=(id,lbl)=>`<button class="tab-btn ${S.page===id?"active":""}" onclick="setPage('${id}')">${lbl}</button>`;
@@ -1411,6 +1611,20 @@ function renderProfileGate(){
         ${!firstTime?`<button class="btn-out" style="padding:9px" onclick="closePengaturan()" title="Tutup">✕</button>`:""}
       </div>
 
+      <!-- TAMPILAN / TEMA -->
+      <div class="card">
+        <div class="sec-hd">🎨 Tampilan</div>
+        <div style="display:flex;gap:10px">
+          <button type="button" onclick="setTheme('light')" style="flex:1;padding:14px 10px;border-radius:10px;border:1.5px solid ${S.theme==="light"?"var(--gold)":"var(--bd2)"};background:${S.theme==="light"?"var(--goldDim)":"var(--surfhi)"};color:var(--tx);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:700">
+            ☀️ Tema Terang ${S.theme==="light"?ico("chk",13):""}
+          </button>
+          <button type="button" onclick="setTheme('dark')" style="flex:1;padding:14px 10px;border-radius:10px;border:1.5px solid ${S.theme==="dark"?"var(--gold)":"var(--bd2)"};background:${S.theme==="dark"?"var(--goldDim)":"var(--surfhi)"};color:var(--tx);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;font-size:12px;font-weight:700">
+            🌙 Tema Gelap ${S.theme==="dark"?ico("chk",13):""}
+          </button>
+        </div>
+        <p style="font-size:10.5px;color:var(--txm);margin-top:10px;line-height:1.5">Dokumen laporan (pratinjau &amp; PDF) selalu tetap berlatar putih seperti kertas, apa pun tema yang dipilih.</p>
+      </div>
+
       <!-- PROFIL PENGGUNA -->
       <div class="card">
         <div class="sec-hd">🧑‍💼 ${ico("user")} Profil Pengguna</div>
@@ -1592,6 +1806,62 @@ function render(){
             <button class="btn-out" onclick="openProfileGate()" style="padding:9px;flex-shrink:0" title="Pengaturan">${ico("gear",16)}</button>
           </div>
 
+          <!-- MONITOR EVIDEN — rekap jumlah eviden per RHK dari folder Drive SKP -->
+          ${(()=>{
+            const ev=S.eviden;
+            if(ev.link && !ev.data && !ev.loading && !ev.error && !ev._autoTried){
+              ev._autoTried=true;
+              setTimeout(()=>window.fetchEviden(ev.link),0);
+            }
+            if(!ev.data){
+              return `
+              <div class="card">
+                <div class="sec-hd">☁️ ${ico("cloud",13)} Monitor Eviden</div>
+                <label class="lbl">Link folder Drive SKP</label>
+                <input type="text" class="je-eviden-link" value="${escAttr(ev.link)}" placeholder="https://drive.google.com/drive/folders/..."/>
+                <button class="btn-gold" style="width:100%;justify-content:center;margin-top:10px;padding:10px" onclick="fetchEviden(document.querySelector('.je-eviden-link').value)" ${ev.loading?"disabled":""}>
+                  ${ev.loading?`<span class="spin-ico">${IC.spin}</span> Menghitung…`:"Hitung Eviden"}
+                </button>
+                ${ev.error?`<p style="font-size:11px;color:#f85149;margin-top:8px">${escHtml(ev.error)}</p>`:""}
+                <p style="font-size:10.5px;color:var(--txm);margin-top:10px;line-height:1.5">Tempel link folder SKP (berisi folder RHK1–RHK9), sudah diatur "Anyone with the link".</p>
+              </div>`;
+            }
+            const rhkList=Object.keys(ev.data).sort((a,b)=>evNomorRhk(a)-evNomorRhk(b));
+            let total=0;
+            const cards=rhkList.map(rhkKey=>{
+              const no=evNomorRhk(rhkKey);
+              const bulanData=ev.data[rhkKey];
+              const keyBulan=Object.keys(bulanData).find(k=>evNomorBulan(k)===ev.bulan);
+              const jumlah=keyBulan?bulanData[keyBulan]:0;
+              total+=jumlah;
+              const target=TARGET_EVIDEN[no];
+              const persen=evPersenTarget(no,jumlah);
+              const persenColor = persen===null?"var(--txm)":(persen>=100?"#3fb950":(persen>0?"var(--gold)":"var(--txm)"));
+              return `<div style="background:var(--surfhi);border-radius:10px;padding:8px;text-align:center">
+                <p style="margin:0;font-size:9px;color:var(--txm)">RHK ${no}</p>
+                <p style="margin:2px 0 0;font-size:16px;font-weight:800;color:${jumlah===0?"var(--txm)":"var(--gold)"}">${jumlah}</p>
+                ${target?`<p style="margin:2px 0 0;font-size:9px;color:${persenColor};font-weight:700">${target==="100%"?`${persen}%`:`/ ${target} · ${persen}%`}</p>`:""}
+              </div>`;
+            }).join("");
+            return `
+            <div class="card">
+              <div class="sec-hd" style="justify-content:space-between">
+                <span>☁️ ${ico("cloud",13)} Monitor Eviden · ${evNamaBulan(ev.bulan)}</span>
+                <div style="display:flex;gap:6px">
+                  <button class="btn-out" style="padding:5px 9px" onclick="fetchEviden(S.eviden.link)" title="Muat ulang">${ico("ref",13)}</button>
+                  <button class="btn-out" style="padding:5px 9px" onclick="evidenGantiLink()" title="Ganti link">${ico("edit",13)}</button>
+                </div>
+              </div>
+              <div class="select-wrap" style="margin-bottom:12px"><select onchange="evidenSetBulan(this.value)">
+                ${EVIDEN_BULAN.map((b,i)=>`<option value="${i+1}" ${ev.bulan===i+1?"selected":""}>${b}</option>`).join("")}
+              </select></div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${cards}</div>
+              <p style="margin:12px 0 0;font-size:11px;color:var(--txs);font-weight:700">Total ${total} eviden terupload bulan ini</p>
+              <p style="margin:4px 0 0;font-size:9.5px;color:var(--txm);line-height:1.5">Angka % di tiap kartu RHK menunjukkan capaian terhadap target eviden bulanan (RHK 6 &amp; 9 dianggap 100% begitu ada 1 laporan).</p>
+              ${ev.error?`<p style="font-size:11px;color:#f85149;margin-top:8px">${escHtml(ev.error)}</p>`:""}
+            </div>`;
+          })()}
+
           <!-- AGENDA / TIMELINE HARIAN (buku harian, bisa digeser ke tanggal sebelumnya) -->
           ${(()=>{
             const day = homeDay(S.homeDate);
@@ -1645,9 +1915,9 @@ function render(){
 
               <div class="divider"></div>
               <p class="lbl" style="margin-bottom:10px">Tambah catatan jurnal</p>
-              <div class="row2" style="margin-bottom:10px">
-                <div><label class="lbl">Jam Mulai</label><input type="time" class="je-inp" data-key="time" value="${escAttr(je.time)}"/></div>
-                <div><label class="lbl">Jam Selesai</label><input type="time" class="je-inp" data-key="endTime" value="${escAttr(je.endTime)}"/></div>
+              <div style="display:flex;gap:10px;margin-bottom:10px">
+                <div style="flex:1;min-width:0"><label class="lbl">Jam Mulai</label><input type="time" class="je-inp" data-key="time" value="${escAttr(je.time)}"/></div>
+                <div style="flex:1;min-width:0"><label class="lbl">Jam Selesai</label><input type="time" class="je-inp" data-key="endTime" value="${escAttr(je.endTime)}"/></div>
               </div>
               <div class="row2" style="margin-bottom:10px">
                 <div><label class="lbl">Kategori RHK</label>
@@ -1657,63 +1927,9 @@ function render(){
                   <div class="select-wrap"><select class="je-workplan-sel">${jeRhk.options.map(o=>`<option value="${escAttr(o)}" ${je.workPlan===o?"selected":""}>${escHtml(o)}</option>`).join("")}</select></div>
                 </div>
               </div>
-              <div class="row2" style="margin-bottom:10px">
-                <div><label class="lbl">Desa</label><input type="text" class="je-inp" data-key="desa" value="${escAttr(je.desa)}" placeholder="Nama desa"/></div>
-                <div><label class="lbl">Sasaran</label><input type="text" class="je-inp" data-key="sasaran" value="${escAttr(je.sasaran)}" placeholder="Misal: KPM PKH"/></div>
-              </div>
               <label class="lbl">Catatan Kegiatan</label>
               <textarea rows="3" class="je-ta" data-key="desc" placeholder="Tulis catatan singkat kegiatan ini…" style="margin-bottom:12px">${escHtml(je.desc)}</textarea>
               <button class="btn-gold" style="width:100%;justify-content:center;padding:10px" onclick="homeAddTimeline()">${ico("plus",12)} Simpan Catatan Jurnal</button>
-            </div>`;
-          })()}
-
-          <!-- MONITOR EVIDEN — rekap jumlah eviden per RHK dari folder Drive SKP -->
-          ${(()=>{
-            const ev=S.eviden;
-            if(ev.link && !ev.data && !ev.loading && !ev.error && !ev._autoTried){
-              ev._autoTried=true;
-              setTimeout(()=>window.fetchEviden(ev.link),0);
-            }
-            if(!ev.data){
-              return `
-              <div class="card">
-                <div class="sec-hd">☁️ ${ico("cloud",13)} Monitor Eviden</div>
-                <label class="lbl">Link folder Drive SKP</label>
-                <input type="text" class="je-eviden-link" value="${escAttr(ev.link)}" placeholder="https://drive.google.com/drive/folders/..."/>
-                <button class="btn-gold" style="width:100%;justify-content:center;margin-top:10px;padding:10px" onclick="fetchEviden(document.querySelector('.je-eviden-link').value)" ${ev.loading?"disabled":""}>
-                  ${ev.loading?`<span class="spin-ico">${IC.spin}</span> Menghitung…`:"Hitung Eviden"}
-                </button>
-                ${ev.error?`<p style="font-size:11px;color:#f85149;margin-top:8px">${escHtml(ev.error)}</p>`:""}
-                <p style="font-size:10.5px;color:var(--txm);margin-top:10px;line-height:1.5">Tempel link folder SKP (berisi folder RHK1–RHK9), sudah diatur "Anyone with the link".</p>
-              </div>`;
-            }
-            const rhkList=Object.keys(ev.data).sort((a,b)=>evNomorRhk(a)-evNomorRhk(b));
-            let total=0;
-            const cards=rhkList.map(rhkKey=>{
-              const bulanData=ev.data[rhkKey];
-              const keyBulan=Object.keys(bulanData).find(k=>evNomorBulan(k)===ev.bulan);
-              const jumlah=keyBulan?bulanData[keyBulan]:0;
-              total+=jumlah;
-              return `<div style="background:var(--surfhi);border-radius:10px;padding:8px;text-align:center">
-                <p style="margin:0;font-size:9px;color:var(--txm)">RHK ${evNomorRhk(rhkKey)}</p>
-                <p style="margin:2px 0 0;font-size:16px;font-weight:800;color:${jumlah===0?"var(--txm)":"var(--gold)"}">${jumlah}</p>
-              </div>`;
-            }).join("");
-            return `
-            <div class="card">
-              <div class="sec-hd" style="justify-content:space-between">
-                <span>☁️ ${ico("cloud",13)} Monitor Eviden · ${evNamaBulan(ev.bulan)}</span>
-                <div style="display:flex;gap:6px">
-                  <button class="btn-out" style="padding:5px 9px" onclick="fetchEviden(S.eviden.link)" title="Muat ulang">${ico("ref",13)}</button>
-                  <button class="btn-out" style="padding:5px 9px" onclick="evidenGantiLink()" title="Ganti link">${ico("edit",13)}</button>
-                </div>
-              </div>
-              <div class="select-wrap" style="margin-bottom:12px"><select onchange="evidenSetBulan(this.value)">
-                ${EVIDEN_BULAN.map((b,i)=>`<option value="${i+1}" ${ev.bulan===i+1?"selected":""}>${b}</option>`).join("")}
-              </select></div>
-              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${cards}</div>
-              <p style="margin:12px 0 0;font-size:11px;color:var(--txs);font-weight:700">Total ${total} eviden terupload bulan ini</p>
-              ${ev.error?`<p style="font-size:11px;color:#f85149;margin-top:8px">${escHtml(ev.error)}</p>`:""}
             </div>`;
           })()}
 
@@ -1770,7 +1986,8 @@ function render(){
           <div id="sec-lokasi" class="card">
             <div class="sec-hd">📍 ${ico("map")} Lokasi & Waktu</div>
             <div class="fld">
-              ${S.villages.length===0?`
+              ${rhk.no===2?(
+                S.villages.length===0?`
               <div style="background:var(--surfhi);border:1px solid var(--bd);border-radius:8px;padding:12px;display:flex;flex-direction:column;gap:8px">
                 <p style="font-size:11px;color:var(--txm);line-height:1.6">Belum ada Desa &amp; Kelompok Dampingan. Tambahkan lewat menu Pengaturan agar bisa dipilih di sini.</p>
                 <button class="btn-ghost" style="align-self:flex-start" onclick="openProfileGate()">${ico("gear",12)} Buka Pengaturan</button>
@@ -1782,7 +1999,21 @@ function render(){
                 <div><label class="lbl">Kelompok</label><div class="select-wrap">
                   <select class="kelompok-sel">${(S.villages.find(v=>v.nama===f.desa)?.kelompok||[]).map(k=>`<option value="${escAttr(k)}" ${f.kelompok===k?"selected":""}>${escHtml(k)}</option>`).join("")}</select>
                 </div></div>
-              </div>`}
+              </div>`
+              ):`
+              <!-- Desa & Kelompok hanya relevan utk RHK 2 (P2K2). RHK lain digulung (collapsed) karena
+                   kegiatannya biasa tidak selalu berlokasi di satu desa dampingan tertentu — narasi
+                   otomatis cukup menulis "desa dampingan", kecuali diisi manual di sini. -->
+              <button type="button" class="btn-ghost" style="margin-bottom:${S.lokasiExpanded?"10px":"0"}" onclick="toggleLokasiExpand()">
+                ${S.lokasiExpanded?"▼":"▶"} Desa Dampingan (opsional)
+              </button>
+              ${S.lokasiExpanded?`
+              <div style="margin-bottom:10px">
+                <label class="lbl">Nama Desa (opsional)</label>
+                <input type="text" class="form-inp" data-key="desaManual" value="${escAttr(f.desaManual)}" placeholder='Kosongkan jika tidak spesifik — narasi akan menulis "desa dampingan"'/>
+                <p style="font-size:10.5px;color:var(--txm);margin-top:6px;line-height:1.5">RHK ini biasanya tidak selalu berlokasi di satu desa dampingan tertentu, jadi kolom ini tidak wajib diisi.</p>
+              </div>`:""}
+              `}
               ${inp("Lokasi Spesifik","tempat")}
               ${inp("Tanggal Kegiatan","tgl_kegiatan","date")}
             </div>
@@ -1794,6 +2025,7 @@ function render(){
             <div class="fld">
               <div class="row2">${photoSlot("kop","Kop Surat","5/1")}${photoSlot("ttd","Tanda Tangan","5/1")}</div>
               ${photoSlot("f1","Foto Utama")}
+              ${renderGeotagPanel()}
               ${photoSlot("f2","Foto Pendukung 1")}
               ${photoSlot("f3","Foto Pendukung 2")}
             </div>
@@ -1911,6 +2143,9 @@ function render(){
   // Bind form inputs
   document.querySelectorAll(".form-inp").forEach(el=>{
     el.addEventListener("input",e=>setQuiet(e.target.dataset.key,e.target.value));
+  });
+  document.querySelectorAll(".geotag-inp").forEach(el=>{
+    el.addEventListener("input",e=>{ S.geotagData[e.target.dataset.gkey]=e.target.value; saveGeotagData(); });
   });
   document.querySelectorAll(".form-ta").forEach(el=>{
     el.addEventListener("input",e=>setQuiet(e.target.dataset.key,e.target.value));
