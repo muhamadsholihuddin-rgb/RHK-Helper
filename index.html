@@ -2221,8 +2221,9 @@ Tuliskan HANYA isi paragraf/poin untuk bagian laporan berjudul "${subjudul}", re
 Ketentuan:
 - Bahasa Indonesia formal gaya birokrasi pemerintahan, sesuai konteks program PKH.
 - Langsung isi kontennya saja — tanpa basa-basi pembuka/penutup, tanpa mengulang judul bagian, tanpa tanda kutip, tanpa markdown.
-- Jika bagian ini secara alami berbentuk daftar (mis. "Maksud dan Tujuan"), tulis 3 poin bernomor format persis "1. ...\\n2. ...\\n3. ..." (baris baru antar poin).
-- Jika bagian ini berbentuk narasi (mis. "Pendahuluan Umum", "Narasi Kegiatan", "Hasil yang Dicapai"), tulis 1 paragraf padat (4-6 kalimat).
+- WAJIB ringkas: total panjang jawaban MAKSIMAL 400 karakter termasuk spasi (idealnya 360-400 karakter). Ini batas keras — jangan melebihi, walau harus memangkas detail. Jangan menulis versi panjang lalu berharap dipotong belakangan.
+- Jika bagian ini secara alami berbentuk daftar (mis. "Maksud dan Tujuan"), tulis 3 poin bernomor singkat format persis "1. ...\\n2. ...\\n3. ..." (baris baru antar poin), dengan total keseluruhan tetap dalam batas 400 karakter di atas.
+- Jika bagian ini berbentuk narasi (mis. "Pendahuluan Umum", "Narasi Kegiatan", "Hasil yang Dicapai"), tulis 1 paragraf padat 2-3 kalimat saja yang tetap dalam batas 400 karakter di atas.
 
 Konteks kegiatan:
 ${konteks}`;
@@ -2232,7 +2233,7 @@ ${konteks}`;
     const resp=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(S.geminiKey.trim())}`,{
       method:"POST",
       headers:{"Content-Type":"application/json"},
-      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}]})
+      body:JSON.stringify({contents:[{role:"user",parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:220,temperature:0.7}})
     });
     const data=await resp.json();
     if(!resp.ok) throw new Error(data?.error?.message || `Gemini API error (${resp.status})`);

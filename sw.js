@@ -1,4 +1,4 @@
-const CACHE_NAME = "autoreport-pkh-v5";
+const CACHE_NAME = "autoreport-pkh-v6";
 const CORE_ASSETS = [
   "./",
   "./index.html",
@@ -31,6 +31,12 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;
+
+  // Request lintas-domain (mis. script.google.com utk Monitor Eviden) TIDAK boleh
+  // ditangani/di-cache oleh SW ini — biarkan lewat langsung ke jaringan apa adanya,
+  // supaya data eviden yang diambil selalu yang terbaru, tidak pernah "nyangkut"
+  // di cache lama saat reload berhari-hari kemudian.
+  if (new URL(req.url).origin !== self.location.origin) return;
 
   const isHTML = req.mode === "navigate" || (req.headers.get("accept") || "").includes("text/html");
 
