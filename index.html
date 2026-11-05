@@ -287,8 +287,8 @@ window.driveUpload=async(inp)=>{
 window.driveClear=()=>{ DRIVE_ROWS=[]; S.driveFile=""; try{ localStorage.removeItem(DRIVE_KEY); }catch(e){} render(); };
 const driveSettingsHTML=()=>`
       <div class="card" style="margin-bottom:14px">
-        <div class="sec-hd">📁 Dashboard Jurnal (Folder Drive Eviden)</div>
-        <p style="font-size:10.5px;color:var(--txm);line-height:1.6;margin-bottom:10px">Unggah file Excel Dashboard Jurnal milik Anda (sheet berisi kolom <b>PILIHAN LAPORAN HARIAN</b> dan link per bulan). Link dipakai untuk tombol <b>Folder Drive</b>. File dibaca di perangkat ini saja.</p>
+        <div class="sec-hd">📁 Dashboard Jurnal (Folder Tujuan Export)</div>
+        <p style="font-size:10.5px;color:var(--txm);line-height:1.6;margin-bottom:10px">Unggah file Excel Dashboard Jurnal milik Anda (sheet berisi kolom <b>PILIHAN LAPORAN HARIAN</b> dan link per bulan). Link dipakai untuk tombol <b>📁 Folder Tujuan</b> di samping Bagikan, yang langsung membuka folder Drive sesuai RHK, kegiatan, dan bulan laporan. File dibaca di perangkat ini saja.</p>
         ${S.driveFile?`<p style="font-size:11.5px;font-weight:700;margin-bottom:8px">✓ ${escHtml(S.driveFile)} <span style="font-weight:400;color:var(--txm)">· ${DRIVE_ROWS.length} kegiatan</span></p>`:""}
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <label class="btn-out" style="cursor:pointer">${ico("up",13)} ${S.driveFile?"Ganti file Excel":"Unggah file Excel"}<input type="file" accept=".xlsx,.xlsm,.xls" style="display:none" onchange="driveUpload(this)"/></label>
@@ -303,50 +303,36 @@ const driveRowFor = (rhkId,opt)=>{
 };
 const driveUrl = (row,month)=>(row&&row.urls&&row.urls[month-1])||"";
 const monthOfDate = d=>{ const m=parseInt(String(d||"").slice(5,7),10); return (m>=1&&m<=12)?m:(new Date().getMonth()+1); };
-// Tombol "Buka Folder Drive" untuk RHK + jenis kegiatan + tanggal tertentu (bulan diambil dari tanggal)
-const driveBtn = (rhkId,opt,dateStr,extraStyle="")=>{
-  const m=monthOfDate(dateStr), url=driveUrl(driveRowFor(rhkId,opt),m);
-  if(!url) return "";
-  return `<a class="btn-ghost" href="${url}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;${extraStyle}" title="Buka folder eviden bulan ${BULAN_ID[m-1]} di Google Drive">📁 Folder Drive · ${BULAN_ID[m-1]}</a>`;
+// ── FOLDER TUJUAN EXPORT ──
+// Folder Drive ditentukan otomatis dari RHK + Jenis Kegiatan + bulan tanggal kegiatan yang sedang dikerjakan.
+function currentFolder(){
+  let rhkId,opt,date;
+  if(S.page==="p2k2"){ rhkId=2; opt=RHK[1].options[0]; date=S.p2&&S.p2.tgl; }
+  else { rhkId=S.rhk.id; opt=S.form.kegiatan; date=S.form.tgl_kegiatan; }
+  const m=monthOfDate(date), url=driveUrl(driveRowFor(rhkId,opt),m);
+  return {url,month:m};
+}
+window.openFolderTujuan=()=>{
+  const {url,month}=currentFolder();
+  if(!url){ showToast(DRIVE_ROWS.length?"Link folder untuk kegiatan/bulan ini tidak ada di Excel Anda":"Unggah file Dashboard Jurnal dulu di Pengaturan",true); return; }
+  window.open(url,"_blank","noopener");
 };
-window.setDriveMonth = m=>{ S.driveMonth=+m; render(); };
-function drivePageHTML(){
-  const m=S.driveMonth||(new Date().getMonth()+1);
-  const grouped=RHK.map(r=>({r,rows:DRIVE_ROWS.filter(d=>d.rhk===r.id)}));
-  return `<div class="fi" style="width:100%;max-width:860px;margin:0 auto">
-    <div style="margin-bottom:16px">
-      <h1 style="font-family:'Playfair Display',serif;font-size:22px;font-weight:700;margin-bottom:6px">📁 Folder Drive Eviden</h1>
-      <p style="color:var(--txm);font-size:12px">Pilih bulan, lalu ketuk kegiatan untuk membuka folder eviden-nya di Google Drive.</p>
-    </div>
-    <div class="card" style="margin-bottom:14px;padding:14px 16px">
-      <label class="lbl">Bulan</label>
-      <div style="display:flex;flex-wrap:wrap;gap:6px">
-        ${BULAN_ID.map((b,i)=>`<button class="tab-btn ${m===i+1?"active":""}" style="border:1px solid ${m===i+1?"var(--goldBd)":"var(--bd)"}" onclick="setDriveMonth(${i+1})">${b}</button>`).join("")}
-      </div>
-    </div>
-    ${!DRIVE_ROWS.length?`<div class="card" style="text-align:center;padding:24px"><p style="font-size:12.5px;color:var(--txs);line-height:1.6;margin-bottom:12px">Belum ada Dashboard Jurnal. Unggah file Excel Anda di menu Pengaturan agar link folder Drive muncul di sini.</p><button class="btn-gold" onclick="openProfileGate()">${ico("gear",13)} Buka Pengaturan</button></div>`:""}
-    <div style="display:flex;flex-direction:column;gap:14px">
-    ${grouped.filter(g=>g.rows.length).map(({r,rows})=>`
-      <div class="card" style="padding:16px">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-          <div style="width:36px;height:36px;background:var(--goldDim);border:1px solid var(--goldBd);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0">${RHK_EMOJI[r.no]||r.no}</div>
-          <div><p style="font-size:13px;font-weight:700;line-height:1.3">RHK ${r.no}: ${escHtml(r.title)}</p><p style="font-size:11px;color:var(--txm)">${escHtml(r.sub)}</p></div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px">
-        ${rows.map(d=>{ const u=driveUrl(d,m); return `
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;background:var(--surfhi);border-radius:8px;padding:9px 12px">
-            <span style="font-size:12px;color:var(--txs);line-height:1.5;flex:1;min-width:200px">${escHtml(d.label)}</span>
-            ${u?`<a class="btn-gold" href="${u}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;white-space:nowrap">📁 Buka ${BULAN_ID[m-1]}</a>`:`<span style="font-size:11px;color:var(--txm)">Belum ada link</span>`}
-          </div>`; }).join("")}
-        </div>
-      </div>`).join("")}
-    </div>
-  </div>`;
+// Tombol "Folder Tujuan" di samping tombol Bagikan
+const folderBtn=(cls="btn-out",style="")=>`<button class="${cls}" onclick="openFolderTujuan()" style="${style}" title="Buka folder Google Drive tujuan untuk kegiatan & bulan ini">📁 Folder Tujuan</button>`;
+// Setelah PDF selesai dibagikan/diunduh: tampilkan tombol besar untuk langsung ke folder tujuan
+// (dibuat sebagai ketukan baru, karena browser memblokir pembukaan tab otomatis setelah proses panjang)
+function showFolderBanner(){
+  const {url,month}=currentFolder(); if(!url) return;
+  let el=document.getElementById("folder-banner"); if(el) el.remove();
+  el=document.createElement("div"); el.id="folder-banner";
+  el.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:1000;background:var(--surf);border:1px solid var(--goldBd);border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 28px rgba(43,54,72,.22);max-width:92vw";
+  el.innerHTML=`<span style="font-size:12px;font-weight:600;color:var(--tx)">PDF siap ✓</span><a class="btn-gold" href="${url}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;white-space:nowrap" onclick="document.getElementById('folder-banner')?.remove()">📁 Buka Folder ${BULAN_ID[month-1]}</a><button class="btn-out" style="padding:6px 10px;min-height:0" onclick="document.getElementById('folder-banner')?.remove()">✕</button>`;
+  document.body.appendChild(el);
 }
 
 // ── ROUTING URL SEDERHANA (agar alamat di address bar mencerminkan halaman aktif) ──
-const PAGE_ROUTES = { home:"/jurnal", edit:"/form", preview:"/preview", rhk:"/daftar-rhk", p2k2:"/p2k2", drive:"/folder-drive" };
-const ROUTE_PAGES = { "/jurnal":"home", "/form":"edit", "/preview":"preview", "/daftar-rhk":"rhk", "/p2k2":"p2k2", "/folder-drive":"drive" };
+const PAGE_ROUTES = { home:"/jurnal", edit:"/form", preview:"/preview", rhk:"/daftar-rhk", p2k2:"/p2k2" };
+const ROUTE_PAGES = { "/jurnal":"home", "/form":"edit", "/preview":"preview", "/daftar-rhk":"rhk", "/p2k2":"p2k2" };
 
 // ── HELPERS ──────────────────────────────────
 const toDate = d => d ? new Intl.DateTimeFormat("id-ID",{weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(new Date(d)) : "";
@@ -1737,18 +1723,18 @@ window.shareReport=async()=>{
         title:judul,
         text:judul
       });
-      showToast("Laporan berhasil dibagikan ✓");
+      showToast("Laporan berhasil dibagikan ✓"); showFolderBanner();
     } else if(navigator.share){
       // Perangkat tidak mendukung share file — bagikan sebagai teks & tetap unduh PDF-nya
       await navigator.share({ title:judul, text:judul });
       const a=document.createElement("a"); a.href=URL.createObjectURL(pdfBlob); a.download=fileName;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      showToast("PDF diunduh — silakan bagikan manual dari folder unduhan");
+      showToast("PDF diunduh — silakan bagikan manual dari folder unduhan"); showFolderBanner();
     } else {
       // Browser tidak mendukung Web Share API sama sekali — unduh saja
       const a=document.createElement("a"); a.href=URL.createObjectURL(pdfBlob); a.download=fileName;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      showToast("Perangkat tidak mendukung fitur Bagikan — PDF diunduh");
+      showToast("Perangkat tidak mendukung fitur Bagikan — PDF diunduh"); showFolderBanner();
     }
   }catch(err){
     if(err && err.name==="AbortError"){ /* user membatalkan share sheet */ }
@@ -1922,6 +1908,7 @@ function render(){
         ${S.showInstallBtn?`<button class="btn-out" onclick="installApp()" title="Instal aplikasi ke perangkat" style="color:var(--gold);border-color:var(--goldBd)">${ico("install",15)} Instal Aplikasi</button>`:""}
         <!-- Export PDF disembunyikan (fungsi tetap tersedia), cukup gunakan tombol Bagikan -->
         <button class="btn-out" onclick="exportWord()">${ico("word")} Word</button>
+        ${folderBtn()}
         <button class="btn-gold" onclick="shareReport()" title="Bagikan Laporan" ${S.shareLoading?"disabled":""}>
           ${S.shareLoading?`<span class="spin-ico">${IC.spin}</span>`:ico("share",14)} Bagikan
         </button>
@@ -1943,7 +1930,6 @@ function render(){
           <button class="side-tab ${S.page==="edit"?"active":""}" onclick="setPage('edit')">${ico("txt")} Isi Form</button>
           <button class="side-tab ${S.page==="preview"?"active":""}" onclick="setPage('preview')">${ico("eye")} Preview</button>
           <button class="side-tab ${S.page==="p2k2"?"active":""}" onclick="setPage('p2k2')">${ico("pdf")} Lap. P2K2</button>
-          <button class="side-tab ${S.page==="drive"?"active":""}" onclick="setPage('drive')"><span style="width:16px;text-align:center">📁</span> Folder Drive</button>
           <button class="side-tab" onclick="openProfileGate()">${ico("gear")} Pengaturan</button>
           <button class="side-tab ${S.page==="rhk"?"active":""}" onclick="setPage('rhk')" style="display:none">${ico("grid")} Daftar RHK</button>
           <div class="divider"></div>
@@ -1956,6 +1942,7 @@ function render(){
           <div class="divider"></div>
           <div style="padding:0 2px;display:flex;flex-direction:column;gap:8px">
             <button class="btn-out" onclick="exportWord()" style="width:100%;justify-content:center">${ico("word",13)} Export Word</button>
+            ${folderBtn("btn-out","width:100%;justify-content:center")}
             <button class="btn-gold" onclick="shareReport()" style="width:100%;justify-content:center" ${S.shareLoading?"disabled":""}>
               ${S.shareLoading?`<span class="spin-ico">${IC.spin}</span>`:ico("share",14)} ${S.shareLoading?"Menyiapkan…":"Bagikan"}
             </button>
@@ -2083,7 +2070,6 @@ function render(){
                       </div>
                       <div style="display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;align-items:center">
                         <button class="btn-ghost" style="padding:5px 10px;${e.done?"":"opacity:.6"}" onclick="homeToggleTimelineDone('${e.id}')" title="Tandai selesai/belum">${e.done?ico("chk",12):""} ${e.done?"Selesai":"Tandai Selesai"}</button>
-                        ${driveBtn(r.id,e.workPlan,S.homeDate,"padding:5px 10px")}
                         <button class="btn-out" style="padding:5px 10px" onclick="homeGoToForm(${r.id})">Isi Form</button>
                         <button class="btn-out" style="padding:5px 10px;color:#f85149;border-color:#f85149" onclick="homeRemoveTimeline('${e.id}')">Hapus</button>
                       </div>
@@ -2107,7 +2093,6 @@ function render(){
                   <div class="select-wrap"><select class="je-workplan-sel">${jeRhk.options.map(o=>`<option value="${escAttr(o)}" ${je.workPlan===o?"selected":""}>${escHtml(o)}</option>`).join("")}</select></div>
                 </div>
               </div>
-              ${driveBtn(jeRhk.id,je.workPlan,S.homeDate,"margin-bottom:10px")}
               <label class="lbl">Catatan Kegiatan</label>
               <textarea rows="3" class="je-ta" data-key="desc" placeholder="Tulis catatan singkat kegiatan ini…" style="margin-bottom:12px">${escHtml(je.desc)}</textarea>
               <button class="btn-gold" style="width:100%;justify-content:center;padding:10px" onclick="homeAddTimeline()">${ico("plus",12)} Simpan Catatan Jurnal</button>
@@ -2134,7 +2119,6 @@ function render(){
               <div><label class="lbl">Jenis Kegiatan</label><div class="select-wrap">
                 <select class="keg-sel">${rhk.options.map(o=>`<option value="${escAttr(o)}" ${f.kegiatan===o?"selected":""}>${escHtml(o)}</option>`).join("")}</select>
               </div></div>
-              ${driveBtn(rhk.id,f.kegiatan,f.tgl_kegiatan,"align-self:flex-start")}
               ${rhk.no===8?inp("Sasaran / Target","sasaran"):""}
               ${rhk.no===9?inp("Sasaran","sasaran",undefined,true):""}
               ${rhk.no===2?`
@@ -2245,6 +2229,7 @@ function render(){
             </div>
             <div style="display:flex;gap:10px;flex-wrap:wrap">
               <button class="btn-out" onclick="exportWord()">${ico("word")} Word</button>
+              ${folderBtn()}
               <button class="btn-gold" onclick="shareReport()" ${S.shareLoading?"disabled":""}>
                 ${S.shareLoading?`<span class="spin-ico">${IC.spin}</span> Menyiapkan…`:`${ico("share")} Bagikan`}
               </button>
@@ -2287,7 +2272,6 @@ function render(){
         `:""}
 
         ${S.page==="p2k2"?p2PageHTML():""}
-        ${S.page==="drive"?drivePageHTML():""}
 
       </main>
     </div>
@@ -2298,7 +2282,7 @@ function render(){
       <button onclick="setPage('edit')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="edit"?"var(--gold)":"var(--txm)"};padding:4px 8px">${ico("txt",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">Isi Form</span></button>
       <button onclick="setPage('preview')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="preview"?"var(--gold)":"var(--txm)"};padding:4px 8px">${ico("eye",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">Lihat</span></button>
       <button onclick="setPage('p2k2')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="p2k2"?"var(--gold)":"var(--txm)"};padding:4px 8px">${ico("pdf",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">P2K2</span></button>
-      <button onclick="setPage('drive')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="drive"?"var(--gold)":"var(--txm)"};padding:4px 8px"><span style="font-size:18px;line-height:20px">📁</span><span style="font-size:9px;font-weight:700;text-transform:uppercase">Drive</span></button>
+      <button onclick="openFolderTujuan()" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--gold);padding:4px 8px"><span style="font-size:18px;line-height:20px">📁</span><span style="font-size:9px;font-weight:700;text-transform:uppercase">Folder</span></button>
       <button onclick="setPage('rhk')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="rhk"?"var(--gold)":"var(--txm)"};padding:4px 8px;display:none">${ico("grid",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">RHK</span></button>
       <button onclick="shareReport()" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--gold);padding:4px 8px">${S.shareLoading?`<span class="spin-ico">${IC.spin}</span>`:ico("share",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">Bagikan</span></button>
       <button onclick="openProfileGate()" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--txm);padding:4px 8px">${ico("gear",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">Pengaturan</span></button>
@@ -2781,11 +2765,11 @@ window.p2Generate=async(mode)=>{
     const file=new File([bytes],fileName,{type:"application/pdf"});
     if(mode==="share" && navigator.canShare && navigator.canShare({files:[file]})){
       await navigator.share({files:[file],title:fileName.replace(/\.pdf$/,""),text:fileName.replace(/\.pdf$/,"")});
-      showToast("Laporan P2K2 berhasil dibagikan ✓");
+      showToast("Laporan P2K2 berhasil dibagikan ✓"); showFolderBanner();
     }else{
       const a=document.createElement("a"); a.href=URL.createObjectURL(file); a.download=fileName;
       document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      showToast(mode==="share"?"Perangkat tidak mendukung Bagikan — PDF diunduh":"PDF P2K2 berhasil diunduh ✓");
+      showToast(mode==="share"?"Perangkat tidak mendukung Bagikan — PDF diunduh":"PDF P2K2 berhasil diunduh ✓"); showFolderBanner();
     }
   }catch(err){
     if(!(err&&err.name==="AbortError")){ console.error(err); showToast("Gagal membuat PDF P2K2, coba lagi",true); }
@@ -2868,6 +2852,7 @@ function p2PageHTML(){
     <div><p style="font-weight:700;font-size:14px">Pratinjau &amp; Hasil PDF</p><p style="font-size:10px;color:var(--txm);margin-top:2px">${escHtml(p2FileName())}</p></div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <button class="btn-out" onclick="p2Generate('dl')" ${P.busy?"disabled":""}>${ico("pdf",13)} Unduh PDF</button>
+      ${folderBtn()}
       <button class="btn-gold" onclick="p2Generate('share')" ${P.busy?"disabled":""}>${P.busy?`<span class="spin-ico">${IC.spin}</span> Menyiapkan…`:`${ico("share",14)} Bagikan`}</button>
     </div>
   </div>
