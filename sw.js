@@ -1,4 +1,4 @@
-const CACHE_NAME = "autoreport-pkh-v10";
+const CACHE_NAME = "autoreport-pkh-v11";
 const CORE_ASSETS = [
   "./",
   "./index.html",

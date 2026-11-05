@@ -108,3 +108,24 @@ GitHub Pages akan otomatis memperbarui. Untuk APK yang sudah terpasang di HP, PW
 secara otomatis saat dibuka (karena isinya sebenarnya membuka website kamu di dalam wrapper APK),
 jadi kamu **tidak perlu build ulang APK** untuk perubahan konten biasa. Build ulang hanya diperlukan
 jika kamu mengubah `manifest.json` (nama app, ikon) atau ingin naik versi di Play Store.
+
+---
+
+## Catatan pembaruan (v7)
+
+- **Orientasi**: `manifest.json` sekarang `"orientation": "any"` (sebelumnya `portrait-primary` → aplikasi terkunci portrait). Setelah deploy, **hapus lalu pasang ulang** aplikasi yang sudah terinstal (PWA), atau **generate ulang APK** di PWABuilder (pilih *Orientation: Default/Any*), karena orientasi dibaca saat instal.
+- **PDF tidak terpotong lagi** di tablet landscape/laptop: lihat fungsi `renderA4Pdf()` di `index.html`.
+- **Folder Tujuan Export**: tiap pemakai mengunggah Excel Dashboard Jurnal miliknya di **Pengaturan**. Tombol **📁 Folder Tujuan** (di samping Bagikan) membuka folder Drive sesuai RHK, kegiatan, dan bulan laporan. Setelah PDF dibagikan/diunduh muncul tombol **Buka Folder** otomatis.
+
+---
+
+## Catatan pembaruan (v9.1) — Upload PDF langsung ke Drive
+
+- Tombol **Bagikan** (Laporan RHK & Lap. P2K2) kini mengunggah PDF **langsung ke folder Drive tujuan** (RHK + kegiatan + bulan, dari Excel Dashboard Jurnal) bila **Google OAuth Client ID** terisi di Pengaturan. Jika tidak terisi / izin ditolak / upload gagal, otomatis kembali ke menu Bagikan biasa.
+- Setelah terupload muncul banner **Buka Folder** (dibuat sebagai ketukan baru karena browser memblokir pembukaan tab otomatis).
+- Tombol **P2K2** dan **Folder** di navigasi bawah (HP) disembunyikan.
+- Cara membuat Client ID: Google Cloud Console → buat project → aktifkan **Google Drive API** → OAuth consent screen → Credentials → *OAuth client ID* tipe **Web application** → Authorized JavaScript origins: isi URL Vercel (mis. `https://nama-project.vercel.app`) → salin Client ID. Boleh juga ditanam di konstanta `DEFAULT_GOOGLE_CLIENT_ID` di `index.html`.
+- Service worker dinaikkan ke `autoreport-pkh-v8`.
+- Perbaikan foto lampiran melar di PDF: object-fit diganti kotak flex (html2canvas tidak mendukung object-fit). Fitur Simpan & Buka Folder dihapus.
+- Foto lampiran: kotak mengikuti proporsi foto (tanpa bar abu-abu).
+- Perintah suara: tombol 🎤 (kanan bawah). Ucapkan "RHK 1".."RHK 9" untuk membuka form RHK tersebut; juga "P2K2", "lihat", "isi form", "jurnal", "pengaturan". Memakai Web Speech API (perlu internet & izin mikrofon).

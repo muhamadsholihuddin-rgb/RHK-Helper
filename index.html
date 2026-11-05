@@ -2934,6 +2934,65 @@ function p2PageHTML(){
   </div>`;
 }
 
+// ── PERINTAH SUARA ──  Ketuk tombol 🎤 lalu ucapkan, mis. "RHK 1", "RHK tiga", "lihat", "P2K2", "pengaturan"
+(function(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  const st=document.createElement("style");
+  st.textContent=`#voice-btn{position:fixed;right:14px;bottom:24px;width:52px;height:52px;border-radius:50%;border:none;background:#33507a;color:#fff;font-size:22px;line-height:52px;text-align:center;cursor:pointer;z-index:400;box-shadow:0 3px 12px rgba(0,0,0,.3);padding:0}
+#voice-btn.on{background:#d93025;animation:vpulse 1s infinite}
+@keyframes vpulse{0%,100%{box-shadow:0 0 0 0 rgba(217,48,37,.5)}50%{box-shadow:0 0 0 12px rgba(217,48,37,0)}}
+@media(max-width:860px){#voice-btn{bottom:calc(84px + env(safe-area-inset-bottom,0px))}}`;
+  document.head.appendChild(st);
+  const btn=document.createElement("button");
+  btn.id="voice-btn"; btn.type="button"; btn.textContent="🎤"; btn.title='Perintah suara (ucapkan "RHK 1")';
+  document.body.appendChild(btn);
+
+  const ANGKA={nol:0,satu:1,se:1,dua:2,tiga:3,empat:4,lima:5,enam:6,tujuh:7,delapan:8,sembilan:9,one:1,two:2,three:3,four:4,five:5,six:6,seven:7,eight:8,nine:9};
+  function parse(raw){
+    const t=" "+String(raw||"").toLowerCase().replace(/[.,!?]/g," ").replace(/\s+/g," ")+" ";
+    const num="(\\d|satu|dua|tiga|empat|lima|enam|tujuh|delapan|sembilan|one|two|three|four|five|six|seven|eight|nine)";
+    const m=t.match(new RegExp("(?:r\\s?h\\s?k|r\\s?k|erha\\s?ka|erhaka|rhk|are\\s?ha\\s?ka)\\s*(?:nomor|no|ke)?\\s*"+num+"(?:\\s|$)"));
+    if(m){ const n=/\d/.test(m[1])?+m[1]:ANGKA[m[1]]; if(n>=1&&n<=9) return {act:"rhk",n}; }
+    if(/p\s?2\s?k\s?2|pe\s?dua\s?ka\s?dua|pertemuan p2k2/.test(t)) return {act:"page",id:"p2k2",label:"Lap. P2K2"};
+    if(/pratinjau|lihat|preview|hasil/.test(t)) return {act:"page",id:"preview",label:"Lihat laporan"};
+    if(/isi form|formulir|\bform\b|edit/.test(t)) return {act:"page",id:"edit",label:"Isi form"};
+    if(/beranda|jurnal|home|utama/.test(t)) return {act:"page",id:"home",label:"Jurnal"};
+    if(/pengaturan|profil|setelan|setting/.test(t)) return {act:"settings",label:"Pengaturan"};
+    if(/\b(daftar|pilih)\b.*rhk|\brhk\b/.test(t)) return {act:"page",id:"rhk",label:"Pilih RHK"};
+    return null;
+  }
+  function run(cmd){
+    if(S.profileGate && cmd.act!=="settings"){ showToast("Selesaikan pengaturan profil dulu",true); return; }
+    if(cmd.act==="rhk"){ window.pickRHK(cmd.n); showToast("🎤 RHK "+cmd.n); }
+    else if(cmd.act==="page"){ window.setPage(cmd.id); showToast("🎤 "+cmd.label); }
+    else if(cmd.act==="settings"){ window.openProfileGate(); showToast("🎤 Pengaturan"); }
+  }
+  let rec=null, busy=false;
+  btn.onclick=()=>{
+    if(!SR){ showToast("Perintah suara tidak didukung di browser/aplikasi ini",true); return; }
+    if(busy&&rec){ try{rec.stop();}catch(e){} return; }
+    rec=new SR(); rec.lang="id-ID"; rec.interimResults=false; rec.maxAlternatives=5; rec.continuous=false;
+    let heard="", handled=false;
+    rec.onstart=()=>{ busy=true; btn.classList.add("on"); showToast('🎤 Mendengarkan… ucapkan mis. "RHK 1"'); };
+    rec.onresult=e=>{
+      const res=e.results[0]; const alts=[];
+      for(let i=0;i<res.length;i++) alts.push(res[i].transcript);
+      heard=alts[0]||"";
+      for(const a of alts){ const c=parse(a); if(c){ handled=true; run(c); return; } }
+    };
+    rec.onerror=e=>{
+      handled=true;
+      const m={"not-allowed":"Izin mikrofon ditolak. Aktifkan izin mikrofon untuk aplikasi ini","service-not-allowed":"Izin mikrofon ditolak. Aktifkan izin mikrofon untuk aplikasi ini","no-speech":"Tidak ada suara terdengar, coba lagi","network":"Perlu koneksi internet untuk perintah suara","audio-capture":"Mikrofon tidak ditemukan"};
+      showToast(m[e.error]||("Perintah suara gagal: "+e.error),true);
+    };
+    rec.onend=()=>{
+      busy=false; btn.classList.remove("on");
+      if(!handled) showToast(heard?('Tidak dikenali: "'+heard+'". Coba "RHK 1"'):"Tidak ada suara terdengar, coba lagi",true);
+    };
+    try{ rec.start(); }catch(e){ busy=false; btn.classList.remove("on"); showToast("Tidak bisa memulai mikrofon",true); }
+  };
+})();
+
 render();
 </script>
 </body>
