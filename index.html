@@ -16,6 +16,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600;700&family=Tinos:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet"/>
 <style>
@@ -290,6 +291,9 @@ const driveSettingsHTML=()=>`
         <div class="sec-hd">📁 Dashboard Jurnal (Folder Tujuan Export)</div>
         <p style="font-size:10.5px;color:var(--txm);line-height:1.6;margin-bottom:10px">Unggah file Excel Dashboard Jurnal milik Anda (sheet berisi kolom <b>PILIHAN LAPORAN HARIAN</b> dan link per bulan). Link dipakai untuk tombol <b>📁 Folder Tujuan</b> di samping Bagikan, yang langsung membuka folder Drive sesuai RHK, kegiatan, dan bulan laporan. File dibaca di perangkat ini saja.</p>
         ${S.driveFile?`<p style="font-size:11.5px;font-weight:700;margin-bottom:8px">✓ ${escHtml(S.driveFile)} <span style="font-weight:400;color:var(--txm)">· ${DRIVE_ROWS.length} kegiatan</span></p>`:""}
+        <label class="lbl" style="margin-top:4px">Google OAuth Client ID (untuk upload langsung ke Drive)</label>
+        <input type="text" value="${escAttr(gClientId())}" oninput="setGClient(this.value)" placeholder="xxxx.apps.googleusercontent.com" style="margin-bottom:6px"/>
+        <p style="font-size:10px;color:var(--txm);line-height:1.6;margin-bottom:10px">Jika diisi, tombol <b>Bagikan</b> otomatis mengunggah PDF ke folder tujuan (sesuai RHK, kegiatan, dan bulan) tanpa lewat menu share. Kosongkan untuk memakai Bagikan biasa.</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <label class="btn-out" style="cursor:pointer">${ico("up",13)} ${S.driveFile?"Ganti file Excel":"Unggah file Excel"}<input type="file" accept=".xlsx,.xlsm,.xls" style="display:none" onchange="driveUpload(this)"/></label>
           ${S.driveFile?`<button class="btn-out" style="color:#f85149;border-color:#f85149" onclick="driveClear()">Hapus</button>`:""}
@@ -321,13 +325,75 @@ window.openFolderTujuan=()=>{
 const folderBtn=(cls="btn-out",style="")=>`<button class="${cls}" onclick="openFolderTujuan()" style="${style}" title="Buka folder Google Drive tujuan untuk kegiatan & bulan ini">📁 Folder Tujuan</button>`;
 // Setelah PDF selesai dibagikan/diunduh: tampilkan tombol besar untuk langsung ke folder tujuan
 // (dibuat sebagai ketukan baru, karena browser memblokir pembukaan tab otomatis setelah proses panjang)
-function showFolderBanner(){
+function showFolderBanner(msg){
   const {url,month}=currentFolder(); if(!url) return;
   let el=document.getElementById("folder-banner"); if(el) el.remove();
   el=document.createElement("div"); el.id="folder-banner";
   el.style.cssText="position:fixed;left:50%;transform:translateX(-50%);bottom:84px;z-index:1000;background:var(--surf);border:1px solid var(--goldBd);border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 8px 28px rgba(43,54,72,.22);max-width:92vw";
-  el.innerHTML=`<span style="font-size:12px;font-weight:600;color:var(--tx)">PDF siap ✓</span><a class="btn-gold" href="${url}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;white-space:nowrap" onclick="document.getElementById('folder-banner')?.remove()">📁 Buka Folder ${BULAN_ID[month-1]}</a><button class="btn-out" style="padding:6px 10px;min-height:0" onclick="document.getElementById('folder-banner')?.remove()">✕</button>`;
+  el.innerHTML=`<span style="font-size:12px;font-weight:600;color:var(--tx)">${msg||"PDF siap ✓"}</span><a class="btn-gold" href="${url}" target="_blank" rel="noopener noreferrer" style="text-decoration:none;white-space:nowrap" onclick="document.getElementById('folder-banner')?.remove()">📁 Buka Folder ${BULAN_ID[month-1]}</a><button class="btn-out" style="padding:6px 10px;min-height:0" onclick="document.getElementById('folder-banner')?.remove()">✕</button>`;
   document.body.appendChild(el);
+}
+
+
+// ── UPLOAD PDF LANGSUNG KE FOLDER GOOGLE DRIVE ──
+// Memakai Google Identity Services (scope drive.file). Client ID OAuth diisi sekali di Pengaturan
+// (atau isi DEFAULT_GOOGLE_CLIENT_ID di bawah agar semua pemakai tidak perlu mengisi sendiri).
+const GCID_KEY="autoreport_gclient";
+const DEFAULT_GOOGLE_CLIENT_ID="";
+const gClientId=()=>{ try{ return (localStorage.getItem(GCID_KEY)||DEFAULT_GOOGLE_CLIENT_ID||"").trim(); }catch(e){ return DEFAULT_GOOGLE_CLIENT_ID; } };
+window.setGClient=(v)=>{ try{ localStorage.setItem(GCID_KEY,String(v||"").trim()); }catch(e){} };
+let G_TOKEN=null, G_TOKEN_EXP=0;
+function folderIdFromUrl(u){
+  const t=String(u||""); const m=t.match(/\/folders\/([a-zA-Z0-9_-]+)/)||t.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  return m?m[1]:"";
+}
+// Target upload untuk laporan yang sedang dikerjakan; null jika belum siap (Client ID / link folder belum ada)
+function driveTarget(){
+  if(!gClientId()) return null;
+  const {url,month}=currentFolder(); const fid=folderIdFromUrl(url);
+  return fid?{fid,url,month}:null;
+}
+// HARUS dipanggil langsung dari ketukan tombol (sebelum proses PDF yang lama), agar popup izin Google tidak diblokir browser.
+function startDriveToken(){
+  if(G_TOKEN && Date.now()<G_TOKEN_EXP) return Promise.resolve(G_TOKEN);
+  return new Promise(res=>{
+    try{
+      if(!window.google||!google.accounts||!google.accounts.oauth2){ res(null); return; }
+      const tc=google.accounts.oauth2.initTokenClient({
+        client_id:gClientId(), scope:"https://www.googleapis.com/auth/drive.file",
+        callback:r=>{ if(r&&r.access_token){ G_TOKEN=r.access_token; G_TOKEN_EXP=Date.now()+((r.expires_in||3600)-60)*1000; res(G_TOKEN); } else res(null); },
+        error_callback:()=>res(null)
+      });
+      tc.requestAccessToken({prompt:""});
+    }catch(e){ res(null); }
+  });
+}
+async function uploadPdfToDrive(file,fid,token){
+  const meta={name:file.name,parents:[fid],mimeType:"application/pdf"};
+  const fd=new FormData();
+  fd.append("metadata",new Blob([JSON.stringify(meta)],{type:"application/json"}));
+  fd.append("file",file);
+  const r=await fetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name",{method:"POST",headers:{Authorization:"Bearer "+token},body:fd});
+  if(r.status===401){ G_TOKEN=null; G_TOKEN_EXP=0; }
+  if(!r.ok){ let m=""; try{ m=(await r.json()).error.message; }catch(e){} throw new Error(m||("HTTP "+r.status)); }
+  return r.json();
+}
+// Mengembalikan true bila PDF berhasil masuk ke folder tujuan (pemanggil lalu tidak perlu membuka share sheet)
+async function driveDeliver(file,dst,tokP){
+  if(!dst||!tokP) return false;
+  const token=await tokP;
+  if(!token){ showToast("Izin Google Drive belum diberikan — memakai Bagikan biasa",true); return false; }
+  try{
+    showToast("Mengunggah ke Google Drive…");
+    await uploadPdfToDrive(file,dst.fid,token);
+    showToast("PDF terupload ke folder "+BULAN_ID[dst.month-1]+" ✓");
+    showFolderBanner("Terupload ke Drive ✓");
+    return true;
+  }catch(err){
+    console.error(err);
+    showToast("Gagal upload ke Drive: "+(err.message||"coba lagi")+" — memakai Bagikan biasa",true);
+    return false;
+  }
 }
 
 // ── ROUTING URL SEDERHANA (agar alamat di address bar mencerminkan halaman aktif) ──
@@ -1670,6 +1736,7 @@ window.shareReport=async()=>{
   const inner=document.getElementById("doc-preview");
   if(!inner){ S.page="preview"; syncUrlToPage("preview"); render(); showToast("Buka pratinjau dulu, lalu tekan Bagikan lagi…"); return; }
   if(S.shareLoading) return;
+  const dst=driveTarget(), tokP=dst?startDriveToken():null;
   S.shareLoading=true; render();
 
   const finish=()=>{ S.shareLoading=false; render(); };
@@ -1717,7 +1784,9 @@ window.shareReport=async()=>{
     const pdfBlob=await renderA4Pdf(cloneInner,{mode:["css","legacy"]});
     const file=new File([pdfBlob],fileName,{type:"application/pdf"});
 
-    if(navigator.canShare && navigator.canShare({files:[file]})){
+    if(await driveDeliver(file,dst,tokP)){
+      /* sudah masuk folder Drive tujuan */
+    } else if(navigator.canShare && navigator.canShare({files:[file]})){
       await navigator.share({
         files:[file],
         title:judul,
@@ -2281,8 +2350,8 @@ function render(){
       <button onclick="setPage('home')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="home"?"var(--gold)":"var(--txm)"};padding:4px 8px">${ico("notebook",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">Jurnal</span></button>
       <button onclick="setPage('edit')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="edit"?"var(--gold)":"var(--txm)"};padding:4px 8px">${ico("txt",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">Isi Form</span></button>
       <button onclick="setPage('preview')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="preview"?"var(--gold)":"var(--txm)"};padding:4px 8px">${ico("eye",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">Lihat</span></button>
-      <button onclick="setPage('p2k2')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="p2k2"?"var(--gold)":"var(--txm)"};padding:4px 8px">${ico("pdf",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">P2K2</span></button>
-      <button onclick="openFolderTujuan()" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--gold);padding:4px 8px"><span style="font-size:18px;line-height:20px">📁</span><span style="font-size:9px;font-weight:700;text-transform:uppercase">Folder</span></button>
+      <button onclick="setPage('p2k2')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="p2k2"?"var(--gold)":"var(--txm)"};padding:4px 8px;display:none">${ico("pdf",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">P2K2</span></button>
+      <button onclick="openFolderTujuan()" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--gold);padding:4px 8px;display:none"><span style="font-size:18px;line-height:20px">📁</span><span style="font-size:9px;font-weight:700;text-transform:uppercase">Folder</span></button>
       <button onclick="setPage('rhk')" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:${S.page==="rhk"?"var(--gold)":"var(--txm)"};padding:4px 8px;display:none">${ico("grid",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">RHK</span></button>
       <button onclick="shareReport()" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--gold);padding:4px 8px">${S.shareLoading?`<span class="spin-ico">${IC.spin}</span>`:ico("share",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">Bagikan</span></button>
       <button onclick="openProfileGate()" style="display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--txm);padding:4px 8px">${ico("gear",20)}<span style="font-size:9px;font-weight:700;text-transform:uppercase">Pengaturan</span></button>
@@ -2741,6 +2810,7 @@ window.p2Generate=async(mode)=>{
   const P=S.p2; if(P.busy) return;
   if(typeof html2pdf==="undefined"){ showToast("html2pdf belum termuat, cek koneksi",true); return; }
   if(P.absPdf && !window.PDFLib){ showToast("Library penggabung PDF belum termuat, cek koneksi",true); return; }
+  const dst=(mode==="share")?driveTarget():null, tokP=dst?startDriveToken():null;
   P.busy=true; render();
   const fileName=p2FileName();
   const clone=document.createElement("div");
@@ -2763,7 +2833,9 @@ window.p2Generate=async(mode)=>{
       bytes=await out.save();
     }
     const file=new File([bytes],fileName,{type:"application/pdf"});
-    if(mode==="share" && navigator.canShare && navigator.canShare({files:[file]})){
+    if(mode==="share" && await driveDeliver(file,dst,tokP)){
+      /* sudah masuk folder Drive tujuan */
+    }else if(mode==="share" && navigator.canShare && navigator.canShare({files:[file]})){
       await navigator.share({files:[file],title:fileName.replace(/\.pdf$/,""),text:fileName.replace(/\.pdf$/,"")});
       showToast("Laporan P2K2 berhasil dibagikan ✓"); showFolderBanner();
     }else{
